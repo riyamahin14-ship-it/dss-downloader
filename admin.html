@@ -101,44 +101,91 @@
         <button class="btn btn-warning" onclick="refreshCodes()">🔄 রিফ্রেশ</button>
         <button class="btn btn-danger" onclick="deleteAllCodes()">🗑️ সব ডিলিট</button>
     </div>
+    <script>
+    async function fetchCodes() {
+        try {
+            const res = await fetch('/api/admin/codes');
+            if (!res.ok) throw new Error('Network error');
+            
+            const data = await res.json();
+            const tbody = document.getElementById('codeTableBody');
+            const totalCount = document.getElementById('totalCount'); // যদি মোট হিসাবের আইডি থাকে
+            
+            tbody.innerHTML = '';
+            const keys = Object.keys(data);
+
+            if(totalCount) totalCount.innerText = keys.length;
+
+            if (keys.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px;">কোনো সক্রিয় কোড নেই</td></tr>`;
+                return;
+            }
+
+            keys.forEach((code, index) => {
+                const limit = data[code];
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td><b>${code}</b></td>
+                        <td>${limit} বার</td>
+                        <td>
+                            <button onclick="deleteCode('${code}')" style="background:#e74c3c; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer;">ডিলিট</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        } catch (err) {
+            console.error('Fetch error:', err);
+        }
+    }
+
+    async function saveCode() {
+        const codeInput = document.getElementById('newCode');
+        const limitInput = document.getElementById('newLimit');
+        
+        const code = codeInput.value.trim();
+        const limit = limitInput.value.trim();
+
+        if (!code || !limit) {
+            alert('কোড এবং লিমিট দিন!');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/admin/create-code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: code, limit: parseInt(limit) })
+            });
+
+            if (res.ok) {
+                codeInput.value = '';
+                fetchCodes(); // অটো টেবিল আপডেট হবে
+            } else {
+                alert('কোড সেভ করতে সমস্যা হয়েছে!');
+            }
+        } catch (err) {
+            alert('সার্ভার এরর!');
+        }
+    }
+
+    async function deleteCode(code) {
+        if (!confirm(`আপনি কি "${code}" ডিলিট করতে চান?`)) return;
+
+        try {
+            const res = await fetch(`/api/admin/delete-code/${code}`, { method: 'DELETE' });
+            if (res.ok) {
+                fetchCodes();
+            }
+        } catch (err) {
+            alert('ডিলিট করা যায়নি!');
+        }
+    }
+
+    // পেজ লোড হওয়ার সাথে সাথে ডাটা আনবে
+    window.onload = fetchCodes;
+    </script>
 </div>
-<script>
-    let allCodes={};
-    function showAlert(m,t='success'){const a=document.getElementById('alert');a.className=`alert alert-${t}`;a.textContent=m;a.style.display='block';setTimeout(()=>a.style.display='none',4000)}
-    function setLoading(s){document.getElementById('loader').style.display=s?'block':'none'}
-    function generateRandomCode(){const c='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';let r='DSS-';for(let i=0;i<6;i++)r+=c[Math.floor(Math.random()*c.length)];document.getElementById('newCode').value=r}
-    window.onload=function(){generateRandomCode();fetchCodes()};
-    async function fetchCodes(){
-        setLoading(true);
-        try{
-            const res=await fetch('/api/admin/codes',{headers:{'Authorization':'Basic '+btoa('MahinKhan:Mahin512@@')}});
-            if(res.status===401){showAlert('লগইন করুন!','danger');setTimeout(()=>window.location.href='admin-login.html',1500);return}
-            const data=await res.json();allCodes=data;renderTable(data);updateCounts(data)
-        }catch(e){showAlert('ডাটা লোড করতে সমস্যা!','danger')}
-        finally{setLoading(false)}
-    }
-    function renderTable(codes){
-        const t=document.getElementById('codeTableBody'),e=Object.entries(codes);
-        if(e.length===0){t.innerHTML='<tr><td colspan="5" class="empty-state">🕊️ এখনো কোনো কোড তৈরি করা হয়নি</td></tr>';return}
-        t.innerHTML=e.map(([c,l],i)=>{let cls='limit-available',st='✅ সক্রিয়';if(l<=0){cls='limit-zero';st='❌ লিমিট শেষ'}else if(l<=2){cls='limit-low';st='⚠️ কম লিমিট'}return `<tr><td>${i+1}</td><td><span class="code-text">${c}</span></td><td><span class="limit-badge ${cls}">${l} বার</span></td><td>${st}</td><td><div class="action-group"><button class="btn btn-primary btn-sm" onclick="editLimit('${c}')">✏️ লিমিট</button><button class="btn btn-danger btn-sm" onclick="deleteCode('${c}')">🗑️</button></div></td></tr>`}).join('')
-    }
-    function updateCounts(c){const k=Object.keys(c).length;document.getElementById('totalCodes').textContent=`মোট কোড: ${k}`;document.getElementById('codeCount').textContent=k}
-    async function saveCode(){
-        const code=document.getElementById('newCode').value.trim(),limit=document.getElementById('newLimit').value.trim();
-        if(!code||!limit)return showAlert('কোড এবং লিমিট দিন!','danger');
-        if(parseInt(limit)<1)return showAlert('লিমিট ১ এর কম হতে পারবে না!','danger');
-        const btn=event?.target||document.querySelector('.btn-success');btn.textContent='⏳ সেভিং...';btn.disabled=true;
-        try{
-            const res=await fetch('/api/admin/create-code',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Basic '+btoa('MahinKhan:Mahin512@@')},body:JSON.stringify({code,limit:parseInt(limit)})});
-            const data=await res.json();
-            if(res.ok){showAlert(`✅ "${code}" তৈরি হয়েছে!`,'success');document.getElementById('newCode').value='';generateRandomCode();document.getElementById('newLimit').value='5';fetchCodes()}else showAlert(data.error||'সেভ করতে সমস্যা!','danger')
-        }catch(e){showAlert('সার্ভার সমস্যা!','danger')}
-        finally{btn.textContent='💾 সংরক্ষণ';btn.disabled=false}
-    }
-    async function deleteCode(code){if(!confirm(`"${code}" ডিলিট করবেন?`))return;try{await fetch(`/api/admin/delete-code/${code}`,{method:'DELETE',headers:{'Authorization':'Basic '+btoa('MahinKhan:Mahin512@@')}});showAlert(`✅ "${code}" ডিলিট!`,'success');fetchCodes()}catch{showAlert('ডিলিট সমস্যা!','danger')}}
-    async function deleteAllCodes(){const c=Object.keys(allCodes).length;if(c===0)return showAlert('কোনো কোড নেই!','info');if(!confirm(`${c}টি কোড ডিলিট করবেন?`))return;try{await fetch('/api/admin/delete-all-codes',{method:'DELETE',headers:{'Authorization':'Basic '+btoa('MahinKhan:Mahin512@@')}});showAlert(`✅ ${c}টি ডিলিট!`,'success');fetchCodes()}catch{showAlert('ডিলিট সমস্যা!','danger')}}
-    async function editLimit(code){const cur=allCodes[code]||0,n=prompt(`"${code}" নতুন লিমিট (বর্তমান: ${cur})`,cur);if(n===null||isNaN(n)||parseInt(n)<0)return;try{await fetch('/api/admin/update-limit',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Basic '+btoa('MahinKhan:Mahin512@@')},body:JSON.stringify({code,limit:parseInt(n)})});showAlert(`✅ "${code}" আপডেট!`,'success');fetchCodes()}catch{showAlert('আপডেট সমস্যা!','danger')}}
-    function refreshCodes(){showAlert('🔄 রিফ্রেশ...','info');fetchCodes()}
-</script>
+
 </body>
                       </html>
