@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSS - অ্যাডমিন প্যানেল</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI',sans-serif;background:linear-gradient(135deg,#f0f4f8,#dce4ec);min-height:100vh;padding:30px 15px}
+        .admin-container{max-width:900px;margin:0 auto;background:white;padding:30px;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.1)}
+        .header{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #eef3f9;padding-bottom:15px;margin-bottom:25px;flex-wrap:wrap;gap:10px}
+        .header h1{font-size:24px;color:#0a2a44}
+        .badge-total{background:#0077be;color:white;padding:6px 14px;border-radius:20px;font-size:14px;font-weight:600}
+        .user-info{display:flex;align-items:center;gap:15px;font-size:14px;color:#475569}
+        .logout-btn{background:#e74c3c;color:white;border:none;padding:6px 14px;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px}
+        .logout-btn:hover{background:#c0392b}
+        .card{background:#fafcff;border:1px solid #e2edf8;padding:22px;border-radius:14px;margin-bottom:25px}
+        .card h3{font-size:16px;color:#0077be;margin-bottom:15px;display:flex;align-items:center;gap:8px}
+        .card h3 .count{background:#e2edf8;color:#0a2a44;padding:2px 10px;border-radius:12px;font-size:12px}
+        .form-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+        .form-group{flex:1;min-width:160px}
+        .form-group label{display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:4px}
+        .form-group input{width:100%;padding:10px 14px;border:2px solid #dce4ed;border-radius:10px;font-size:14px;outline:none;background:white}
+        .form-group input:focus{border-color:#0077be;box-shadow:0 0 0 3px rgba(0,119,190,0.1)}
+        .btn{padding:10px 20px;border:none;border-radius:10px;cursor:pointer;font-weight:600;font-size:14px;transition:0.3s;display:inline-flex;align-items:center;gap:6px}
+        .btn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,0.12)}
+        .btn-primary{background:#0077be;color:white}
+        .btn-success{background:#0f7b3a;color:white}
+        .btn-danger{background:#e74c3c;color:white}
+        .btn-purple{background:#6c5ce7;color:white}
+        .btn-warning{background:#f39c12;color:white}
+        .btn-sm{padding:6px 12px;font-size:12px}
+        .table-wrapper{overflow-x:auto;border-radius:12px;border:1px solid #e2edf8}
+        table{width:100%;border-collapse:collapse}
+        th{background:#f1f5f9;color:#475569;font-weight:600;font-size:13px;padding:12px 16px;text-align:left;border-bottom:2px solid #dce4ed}
+        td{padding:12px 16px;border-bottom:1px solid #edf2f7;font-size:14px;vertical-align:middle}
+        tr:hover td{background:#f8fafc}
+        .code-text{font-weight:600;color:#0a2a44;font-family:'Courier New',monospace;letter-spacing:1px}
+        .limit-badge{display:inline-block;padding:4px 12px;border-radius:20px;font-weight:600;font-size:13px}
+        .limit-available{background:#e6f7ed;color:#0f7b3a}
+        .limit-zero{background:#fce8e8;color:#b13a3a}
+        .limit-low{background:#fef3e2;color:#b17a0f}
+        .action-group{display:flex;gap:6px;flex-wrap:wrap}
+        .alert{padding:12px 18px;border-radius:10px;margin-bottom:15px;font-weight:500;display:none}
+        .alert-success{background:#e6f7ed;color:#0f7b3a;border:1px solid #b7ebc9}
+        .alert-danger{background:#fce8e8;color:#b13a3a;border:1px solid #f5c2c2}
+        .alert-info{background:#e2edf8;color:#1a5f8a;border:1px solid #b8d4e8}
+        .spinner{display:none;width:24px;height:24px;border:3px solid #e0e8f0;border-top:3px solid #0077be;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .empty-state{text-align:center;padding:30px;color:#8a9aa8}
+        @media(max-width:600px){.admin-container{padding:15px}.form-row{flex-direction:column}.form-group{min-width:100%}.header{flex-direction:column;align-items:flex-start}}
+    </style>
+</head>
+<body>
+<script>
+    (function(){
+        if(!sessionStorage.getItem('adminLoggedIn')||sessionStorage.getItem('adminUser')!=='MahinKhan')window.location.href='admin-login.html';
+    })();
+    function logout(){sessionStorage.clear();window.location.href='admin-login.html'}
+</script>
+<div class="admin-container">
+    <div class="header">
+        <h1>⚙️ DSS অ্যাডমিন প্যানেল</h1>
+        <div class="user-info">
+            <span>👤 MahinKhan</span>
+            <button class="logout-btn" onclick="logout()">🚪 লগআউট</button>
+            <span class="badge-total" id="totalCodes">মোট কোড: ০</span>
+        </div>
+    </div>
+    <div id="alert" class="alert"></div>
+    <div class="card">
+        <h3>➕ নতুন গোপন কোড তৈরি করুন</h3>
+        <div class="form-row">
+            <div class="form-group">
+                <label>গোপন কোড</label>
+                <div style="display:flex;gap:6px">
+                    <input type="text" id="newCode" placeholder="DSS-XXXX" style="flex:1">
+                    <button class="btn btn-purple" onclick="generateRandomCode()">🎲 র‍্যান্ডম</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>ডাউনলোড লিমিট</label>
+                <input type="number" id="newLimit" value="5" min="1" max="100">
+            </div>
+            <div class="form-group" style="min-width:120px">
+                <button class="btn btn-success" onclick="saveCode()" style="width:100%">💾 সংরক্ষণ</button>
+            </div>
+        </div>
+    </div>
+    <div class="card">
+        <h3>📋 সক্রিয় কোডের তালিকা <span class="count" id="codeCount">০</span></h3>
+        <div class="table-wrapper">
+            <table>
+                <thead><tr><th>#</th><th>গোপন কোড</th><th>অবশিষ্ট লিমিট</th><th>স্ট্যাটাস</th><th>অ্যাকশন</th></tr></thead>
+                <tbody id="codeTableBody"><tr><td colspan="5" class="empty-state">🔄 লোড হচ্ছে...</td></tr></tbody>
+            </table>
+        </div>
+        <div id="loader" class="spinner" style="margin-top:20px"></div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn btn-warning" onclick="refreshCodes()">🔄 রিফ্রেশ</button>
+        <button class="btn btn-danger" onclick="deleteAllCodes()">🗑️ সব ডিলিট</button>
+    </div>
+</div>
+<script>
+    let allCodes={};
+    function showAlert(m,t='success'){const a=document.getElementById('alert');a.className=`alert alert-${t}`;a.textContent=m;a.style.display='block';setTimeout(()=>a.style.display='none',4000)}
+    function setLoading(s){document.getElementById('loader').style.display=s?'block':'none'}
+    function generateRandomCode(){const c='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';let r='DSS-';for(let i=0;i<6;i++)r+=c[Math.floor(Math.random()*c.length)];document.getElementById('newCode').value=r}
+    window.onload=function(){generateRandomCode();fetchCodes()};
+    async function fetchCodes(){
+        setLoading(true);
+        try{
+            const res=await fetch('/api/admin/codes',{headers:{'Authorization':'Basic '+btoa('MahinKhan:Mahin512@@')}});
+            if(res.status===401){showAlert('লগইন করুন!','danger');setTimeout(()=>window.location.href='admin-login.html',1500);return}
+            const data=await res.json();allCodes=data;renderTable(data);updateCounts(data)
+        }catch(e){showAlert('ডাটা লোড করতে সমস্যা!','danger')}
+        finally{setLoading(false)}
+    }
+    function renderTable(codes){
+        const t=document.getElementById('codeTableBody'),e=Object.entries(codes);
+        if(e.length===0){t.innerHTML='<tr><td colspan="5" class="empty-state">🕊️ এখনো কোনো কোড তৈরি করা হয়নি</td></tr>';return}
+        t.innerHTML=e.map(([c,l],i)=>{let cls='limit-available',st='✅ সক্রিয়';if(l<=0){cls='limit-zero';st='❌ লিমিট শেষ'}else if(l<=2){cls='limit-low';st='⚠️ কম লিমিট'}return `<tr><td>${i+1}</td><td><span class="code-text">${c}</span></td><td><span class="limit-badge ${cls}">${l} বার</span></td><td>${st}</td><td><div class="action-group"><button class="btn btn-primary btn-sm" onclick="editLimit('${c}')">✏️ লিমিট</button><button class="btn btn-danger btn-sm" onclick="deleteCode('${c}')">🗑️</button></div></td></tr>`}).join('')
+    }
+    function updateCounts(c){const k=Object.keys(c).length;document.getElementById('totalCodes').textContent=`মোট কোড: ${k}`;document.getElementById('codeCount').textContent=k}
+    async function saveCode(){
+        const code=document.getElementById('newCode').value.trim(),limit=document.getElementById('newLimit').value.trim();
+        if(!code||!limit)return showAlert('কোড এবং লিমিট দিন!','danger');
+        if(parseInt(limit)<1)return showAlert('লিমিট ১ এর কম হতে পারবে না!','danger');
+        const btn=event?.target||document.querySelector('.btn-success');btn.textContent='⏳ সেভিং...';btn.disabled=true;
+        try{
+            const res=await fetch('/api/admin/create-code',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Basic '+btoa('MahinKhan:Mahin512@@')},body:JSON.stringify({code,limit:parseInt(limit)})});
+            const data=await res.json();
+            if(res.ok){showAlert(`✅ "${code}" তৈরি হয়েছে!`,'success');document.getElementById('newCode').value='';generateRandomCode();document.getElementById('newLimit').value='5';fetchCodes()}else showAlert(data.error||'সেভ করতে সমস্যা!','danger')
+        }catch(e){showAlert('সার্ভার সমস্যা!','danger')}
+        finally{btn.textContent='💾 সংরক্ষণ';btn.disabled=false}
+    }
+    async function deleteCode(code){if(!confirm(`"${code}" ডিলিট করবেন?`))return;try{await fetch(`/api/admin/delete-code/${code}`,{method:'DELETE',headers:{'Authorization':'Basic '+btoa('MahinKhan:Mahin512@@')}});showAlert(`✅ "${code}" ডিলিট!`,'success');fetchCodes()}catch{showAlert('ডিলিট সমস্যা!','danger')}}
+    async function deleteAllCodes(){const c=Object.keys(allCodes).length;if(c===0)return showAlert('কোনো কোড নেই!','info');if(!confirm(`${c}টি কোড ডিলিট করবেন?`))return;try{await fetch('/api/admin/delete-all-codes',{method:'DELETE',headers:{'Authorization':'Basic '+btoa('MahinKhan:Mahin512@@')}});showAlert(`✅ ${c}টি ডিলিট!`,'success');fetchCodes()}catch{showAlert('ডিলিট সমস্যা!','danger')}}
+    async function editLimit(code){const cur=allCodes[code]||0,n=prompt(`"${code}" নতুন লিমিট (বর্তমান: ${cur})`,cur);if(n===null||isNaN(n)||parseInt(n)<0)return;try{await fetch('/api/admin/update-limit',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Basic '+btoa('MahinKhan:Mahin512@@')},body:JSON.stringify({code,limit:parseInt(n)})});showAlert(`✅ "${code}" আপডেট!`,'success');fetchCodes()}catch{showAlert('আপডেট সমস্যা!','danger')}}
+    function refreshCodes(){showAlert('🔄 রিফ্রেশ...','info');fetchCodes()}
+</script>
+</body>
+                      </html>
