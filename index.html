@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSS অটো ডাউনলোড</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI',sans-serif;background:linear-gradient(135deg,#e8f0fe,#d4e4f7);min-height:100vh;display:flex;justify-content:center;align-items:center;padding:20px}
+        .container{background:white;padding:40px 35px;border-radius:24px;box-shadow:0 25px 70px rgba(0,0,0,0.12);max-width:480px;width:100%;text-align:center}
+        h1{font-size:24px;color:#0a2a44;margin-bottom:6px}
+        .sub{color:#4b6a85;font-size:14px;margin-bottom:24px;border-bottom:2px solid #eef3f9;padding-bottom:14px}
+        .input-group{margin-bottom:18px;text-align:left}
+        .input-group label{display:block;font-size:13px;font-weight:600;color:#0a2a44;margin-bottom:6px}
+        input{width:100%;padding:13px 16px;font-size:15px;border:2px solid #dce4ed;border-radius:12px;outline:none;background:#fafcff}
+        input:focus{border-color:#0077be;box-shadow:0 0 0 4px rgba(0,119,190,0.12)}
+        .limit-badge{margin-top:8px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;display:none}
+        .limit-success{color:#0f7b3a;background:#e6f7ed;border:1px solid #b7ebc9}
+        .limit-danger{color:#b13a3a;background:#fce8e8;border:1px solid #f5c2c2}
+        .btn-download{width:100%;padding:14px;font-size:16px;font-weight:600;border:none;border-radius:12px;cursor:pointer;background:#0077be;color:white;margin-top:10px}
+        .btn-download:hover{background:#005a8c}
+        #status{margin-top:18px;font-size:14px;min-height:28px}
+        .spinner{display:none;width:30px;height:30px;border:3px solid #e0e8f0;border-top:3px solid #0077be;border-radius:50%;animation:spin 0.8s linear infinite;margin:12px auto 0}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .msg-success{color:#0f7b3a;background:#e6f7ed;padding:8px 14px;border-radius:10px;display:inline-block}
+        .msg-error{color:#b13a3a;background:#fce8e8;padding:8px 14px;border-radius:10px;display:inline-block}
+        .msg-info{color:#1a5f8a;background:#e2edf8;padding:8px 14px;border-radius:10px;display:inline-block}
+        .footer-note{margin-top:24px;font-size:12px;color:#6c859e;border-top:1px solid #e5ecf3;padding-top:14px}
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📄 DSS আবেদন ডাউনলোডার</h1>
+    <div class="sub">তথ্য প্রদান করে সরাসরি কপি সংগ্রহ করুন</div>
+    <div class="input-group">
+        <label>আবেদন আইডি (Application ID)</label>
+        <input type="text" id="appId" placeholder="যেমন: 2571418587" inputmode="numeric">
+    </div>
+    <div class="input-group">
+        <label>গোপন পাসকোড (Secret PIN)</label>
+        <input type="text" id="secretCode" placeholder="আপনার গোপন পিনটি লিখুন">
+        <div id="limitBadge" class="limit-badge"></div>
+    </div>
+    <button class="btn-download" onclick="triggerDownload()">🔍 খুঁজুন ও ডাউনলোড করুন</button>
+    <div id="status"></div>
+    <div class="spinner" id="loader"></div>
+    <div class="footer-note">🔒 মূল লিঙ্ক গোপন রেখে সরাসরি ডিভাইসে ডাউনলোড</div>
+</div>
+<script>
+    const appId=document.getElementById('appId'),secret=document.getElementById('secretCode'),badge=document.getElementById('limitBadge'),statusDiv=document.getElementById('status'),loader=document.getElementById('loader');
+    let timer=null;
+    function setStatus(msg,type='info'){statusDiv.innerHTML=`<span class="msg-${type}">${msg}</span>`}
+    function setLoading(s){loader.style.display=s?'block':'none'}
+    async function checkLimit(){
+        const code=secret.value.trim();
+        if(!code){badge.style.display='none';return}
+        try{
+            const res=await fetch(`/check-limit?code=${encodeURIComponent(code)}`);
+            const data=await res.json();
+            badge.style.display='block';
+            if(res.ok&&data.remainingLimit>0){badge.className='limit-badge limit-success';badge.innerHTML=`⚡ অবশিষ্ট লিমিট: <b>${data.remainingLimit} বার</b>`}
+            else{badge.className='limit-badge limit-danger';badge.innerHTML=res.ok?'❌ লিমিট শেষ!':'⚠️ অবৈধ কোড!'}
+        }catch{badge.style.display='none'}
+    }
+    secret.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(checkLimit,200)});
+    async function triggerDownload(){
+        const id=appId.value.trim(),code=secret.value.trim();
+        if(!id||!code)return setStatus('⚠️ আইডি এবং কোড দিন','error');
+        if(!/^\d+$/.test(id))return setStatus('❌ আইডি কেবল সংখ্যা হতে হবে','error');
+        setLoading(true);setStatus('⏳ প্রসেস হচ্ছে...','info');
+        try{
+            const res=await fetch('/download-application',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,code})});
+            setLoading(false);
+            if(res.status===403)return setStatus('❌ ভুল গোপন কোড!','error');
+            if(res.status===429)return setStatus('⚠️ লিমিট শেষ!','error');
+            if(!res.ok){const e=await res.json();return setStatus(`❌ ${e.error||'ফাইল পাওয়া যায়নি!'}`,'error')}
+            const blob=await res.blob(),url=window.URL.createObjectURL(blob),a=document.createElement('a');
+            a.href=url;a.download=`Application_${id}.pdf`;document.body.appendChild(a);a.click();document.body.removeChild(a);
+            setStatus('✅ ডাউনলোড সম্পন্ন!','success');checkLimit();
+        }catch{setLoading(false);setStatus('🌐 সার্ভার সংযোগ সমস্যা!','error')}
+    }
+</script>
+</body>
+</html>
