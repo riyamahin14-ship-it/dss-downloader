@@ -1,67 +1,114 @@
-// ১. লাইব্রেরি ইম্পোর্ট করা
 const express = require('express');
+const axios = require('axios');
+const cors = require('cors');
 const path = require('path');
 
-// ২. অ্যাপ তৈরি করা
 const app = express();
 
-// ------------------------------------------------------------------
-// ৩. অত্যন্ত গুরুত্বপূর্ণ: মিডলওয়্যার (Frontend থেকে ডাটা রিসিভ করার জন্য)
-// ------------------------------------------------------------------
-app.use(express.json()); // JSON ডাটা পার্স করার জন্য
-app.use(express.urlencoded({ extended: true })); // ফর্ম ডাটা পার্স করার জন্য
+// Middleware
+app.use(cors()); // CORS এরর এড়াতে
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public'))); // public ফোল্ডার সার্ভ করবে
 
-// ৪. স্ট্যাটিক ফোল্ডার সেট করা (যাতে index.html, CSS সব লোড হয়)
-app.use(express.static(__dirname));
+// ইন-মেমোরি গোপন কোড ও লিমিট ডাটাবেজ
+let codeDatabase = {
+    "DSS2026": 10,
+    "VIP5": 5
+};
 
-// ------------------------------------------------------------------
-// ৫. পেজ রুট (Routes) গুলো সেট করা
-// ------------------------------------------------------------------
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
+// ================= API ENDPOINTS ================= //
 
-app.get('/admin-login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'admin-login.html'));
-});
+// ১. এপিআই: গোপন কোডের অবশিষ্ট লিমিট দেখা
+// Endpoint: GET /check-limit?code=YOUR_CODE
+app.get('/check-limit', (req, res) => {
+    const { code } = req.query;
 
-app.get('/admin', (req, res) => {
-    res.sendFile(path.join(__dirname, 'admin.html'));
-});
+    if (!code || !codeDatabase.hasOwnProperty(code)) {
+        return res.status(400).json({
+            success: false,
+            message: 'অবৈধ বা ভুল গোপন কোড!'
+        });
+    }
 
-// ------------------------------------------------------------------
-// ৬. 🔥 API: ফর্ম থেকে ডাটা রিসিভ করার জন্য (এটাই আপনার এরর ফিক্স করবে)
-// ------------------------------------------------------------------
-app.post('/create-code', (req, res) => {
-    // ব্রাউজার থেকে পাঠানো ডাটা এখানে আসবে
-    const { secretCode, downloadLimit } = req.body; 
-
-    // লগে চেক করুন ডাটা এসেছে কিনা
-    console.log("✅ নতুন রিকোয়েস্ট পেয়েছি!");
-    console.log("📦 গোপন কোড:", secretCode);
-    console.log("📦 লিমিট:", downloadLimit);
-
-    // এখানে আপনার ডাটা ডাটাবেসে সেভ করার কোড লিখবেন (যদি থাকে)
-
-    // সফল হলে ব্রাউজারে রেসপন্স পাঠানো
-    res.json({ 
-        success: true, 
-        message: "সফলভাবে কোড তৈরি করা হয়েছে!",
-        receivedData: req.body 
+    return res.status(200).json({
+        success: true,
+        code: code,
+        remainingLimit: codeDatabase[code]
     });
 });
 
-// ------------------------------------------------------------------
-// ৭. যেকোনো ভুল (404) হ্যান্ডেল করা
-// ------------------------------------------------------------------
-app.use((req, res) => {
-    res.status(404).send("পেজটি পাওয়া যায়নি! (404 Error)");
+// ২. এপিআই: আসল লিঙ্ক গোপন রেখে PDF ডাউনলোড
+// Endpoint: POST /download-application
+app.post('/download-application', async (req, res) => {
+    const { id, code } = req.body || {};
+
+    if (!id || !code) {
+        return res.status(400).json({
+            success: false,
+            message: 'আবেদন আইডি এবং গোপন কোড দুটোই প্রয়োজন।'
+        });
+    }
+
+    if (!codeDatabase.hasOwnProperty(code)) {
+        return res.status(403).json({
+            success: false,
+            message: 'ভুল গোপন কোড!'
+        });
+    }
+
+    if (codeDatabase[code] <= 0) {
+        return res.status(429).json({
+            success: false,
+            message: 'এই গোপন কোডের ডাউনলোড লিমিট শেষ হয়ে গেছে!'
+        });
+    }
+
+    // আপনার দেওয়া আসল ডাইনামিক ইউআরএল (যা ক্লায়েন্ট থেকে সম্পূর্ণ হাইড থাকবে)
+    const targetUrl = `https://dss.bhata.gov.bd/submitted-application?id=${id}`;
+
+    try {
+        const response = await axios.get(targetUrl, {
+            responseType: 'arraybuffer',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+            }
+        });
+
+        // সফল ডাউনলোডে ১ টি লিমিট কমবে
+        codeDatabase[code] -= 1;
+
+        // ফাইল হিসেবে ক্লায়েন্টে রেসপন্স পাঠানো
+        res.setHeader('Content-Type', response.headers['content-type'] || 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=Application_${id}.pdf`);
+        return res.send(response.data);
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: 'মূল সার্ভার থেকে ফাইল পাওয়া যায়নি।'
+        });
+    }
 });
 
-// ------------------------------------------------------------------
-// ৮. সার্ভার চালু করা
-// ------------------------------------------------------------------
+// ================= ADMIN APIs ================= //
+
+// ৩. এপিআই: সব কোডের তালিকা
+app.get('/api/admin/codes', (req, res) => {
+    res.json(codeDatabase);
+});
+
+// ৪. এপিআই: নতুন কোড ও লিমিট যুক্ত করা
+app.post('/api/admin/create-code', (req, res) => {
+    const { code, limit } = req.body;
+    if (!code || limit === undefined || limit < 0) {
+        return res.status(400).json({ message: 'সঠিক কোড ও লিমিট দিন।' });
+    }
+    codeDatabase[code] = parseInt(limit);
+    res.json({ message: 'কোড সফলভাবে তৈরি হয়েছে', data: codeDatabase });
+});
+
+// Render-এর দেওয়া ডায়নামিক পোর্ট পোর্ট ধরবে
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`🚀 সার্ভার সফলভাবে চলছে। পোর্ট: ${PORT}`);
+    console.log(`Server running on port ${PORT}`);
 });
